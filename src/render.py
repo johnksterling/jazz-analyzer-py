@@ -17,15 +17,27 @@ def render_to_musicxml(score, output_path):
 
 def annotate_score(score, key, roman_numerals=None):
     """
-    Annotates the score with guide tones, non-diatonic highlights, and Roman Numerals.
+    Annotates the score with guide tones, non-diatonic highlights, Roman Numerals,
+    and actual Chord Symbols (e.g., Gmin7).
     Modifies the score in place.
     """
     from src.analyze import get_guide_tones, is_diatonic
+    from music21 import harmony
     
     # Extract chords in the same order they would be analyzed
     chords = list(score.flatten().getElementsByClass(chord.Chord))
     
     for i, el in enumerate(chords):
+        # 1. Add Chord Symbols (Lead Sheet style)
+        try:
+            cs = harmony.chordSymbolFromChord(el)
+            # Find the part to insert the chord symbol into (above the staff)
+            # In our current pipeline, we only have one part in the score being rendered.
+            score.parts[0].insert(el.offset, cs)
+        except Exception:
+            # If identification fails, skip the symbol
+            pass
+
         guide_tones = get_guide_tones(el)
         third = guide_tones.get('third')
         seventh = guide_tones.get('seventh')
