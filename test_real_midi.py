@@ -1,7 +1,7 @@
 from src.source import load_midi
 from src.render import render_to_musicxml, annotate_score
 from src.parse import quantize_harmony, get_chord_names
-from src.analyze import detect_key, analyze_progression, identify_ii_v_i
+from src.analyze import detect_key, analyze_progression, identify_ii_v_i, identify_tritone_subs
 from music21 import instrument, stream
 import os
 import sys
@@ -52,6 +52,9 @@ def main():
             # Detect Patterns
             ii_v_i_indices = identify_ii_v_i(roman_numerals)
             print(f"Found {len(ii_v_i_indices)} ii-V-I progressions.")
+
+            tritone_subs = identify_tritone_subs(roman_numerals)
+            print(f"Found {len(tritone_subs)} tritone substitutions (ii - subV - I).")
 
             # Annotate
             # Create a new score for rendering with the quantized part
