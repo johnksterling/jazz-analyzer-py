@@ -61,9 +61,9 @@ def main():
             render_score = stream.Score()
             render_score.insert(0, quantized_part)
             
-            print("Annotating quantized score with guide tones and non-diatonic highlights...")
+            print("Annotating quantized score with guide tones, non-diatonic highlights, and Roman Numerals...")
             try:
-                annotated_score = annotate_score(render_score, key)
+                annotated_score = annotate_score(render_score, key, roman_numerals)
 
                 print(f"Rendering to {output_xml}...")
                 if render_to_musicxml(annotated_score, output_xml):

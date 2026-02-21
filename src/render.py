@@ -15,49 +15,53 @@ def render_to_musicxml(score, output_path):
         print(f"Error rendering to MusicXML: {e}")
         return False
 
-def annotate_score(score, key):
+def annotate_score(score, key, roman_numerals=None):
     """
-    Annotates the score with guide tones and non-diatonic highlights.
+    Annotates the score with guide tones, non-diatonic highlights, and Roman Numerals.
     Modifies the score in place.
     """
     from src.analyze import get_guide_tones, is_diatonic
     
-    # Iterate over all elements that are chords or notes
-    for el in score.flatten().recurse():
-        if isinstance(el, chord.Chord):
-            guide_tones = get_guide_tones(el)
-            third = guide_tones.get('third')
-            seventh = guide_tones.get('seventh')
-            
-            # Label guide tones in lyrics
-            lyrics = []
-            if third:
-                lyrics.append("3")
-            if seventh:
-                lyrics.append("7")
-            
-            if lyrics:
-                el.lyric = "/".join(lyrics)
-            
-            # Color non-diatonic notes within the chord if possible
-            # In music21, we can't easily color individual notes within a chord 
-            # for all output formats, but we can try to label them.
-            has_non_diatonic = False
-            for p in el.pitches:
-                if not is_diatonic(p, key):
-                    has_non_diatonic = True
-                    break
-            
-            if has_non_diatonic:
-                el.style.color = 'red'
-                if el.lyric:
-                    el.lyric += " (non-dia)"
-                else:
-                    el.lyric = "non-dia"
+    # Extract chords in the same order they would be analyzed
+    chords = list(score.flatten().getElementsByClass(chord.Chord))
+    
+    for i, el in enumerate(chords):
+        guide_tones = get_guide_tones(el)
+        third = guide_tones.get('third')
+        seventh = guide_tones.get('seventh')
         
-        elif isinstance(el, note.Note):
-            if not is_diatonic(el.pitch, key):
-                el.style.color = 'red'
+        # Label guide tones in lyrics
+        lyrics = []
+        if third:
+            lyrics.append("3")
+        if seventh:
+            lyrics.append("7")
+            
+        if roman_numerals and i < len(roman_numerals):
+            # Add the Roman Numeral figure
+            lyrics.append(roman_numerals[i].figure)
+        
+        if lyrics:
+            el.lyric = "/".join(lyrics)
+        
+        # Color non-diatonic notes within the chord if possible
+        has_non_diatonic = False
+        for p in el.pitches:
+            if not is_diatonic(p, key):
+                has_non_diatonic = True
+                break
+        
+        if has_non_diatonic:
+            el.style.color = 'red'
+            if el.lyric:
+                el.lyric += " (non-dia)"
+            else:
                 el.lyric = "non-dia"
+    
+    # Also color individual notes if they exist (not inside a chord)
+    for el in score.flatten().getElementsByClass(note.Note):
+        if not is_diatonic(el.pitch, key):
+            el.style.color = 'red'
+            el.lyric = "non-dia"
             
     return score
