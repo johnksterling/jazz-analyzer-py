@@ -58,6 +58,37 @@ def identify_ii_v_i(roman_numerals):
             
     return patterns
 
+def identify_tritone_subs(roman_numerals):
+    """
+    Identifies tritone substitutions (subV) resolving to a target chord.
+    Specifically looks for ii - subV - I (root motion descending by half steps).
+    Returns a list of indices where the pattern starts.
+    """
+    patterns = []
+    for i in range(len(roman_numerals) - 2):
+        r1 = roman_numerals[i]
+        r2 = roman_numerals[i+1]
+        r3 = roman_numerals[i+2]
+        
+        try:
+            # Get the pitch classes of the roots
+            rt1 = r1.root().pitchClass
+            rt2 = r2.root().pitchClass
+            rt3 = r3.root().pitchClass
+            
+            # A tritone substitution resolving down by half step means 
+            # the roots move by -1 semitone (or 11 mod 12).
+            # e.g., Dm7 -> Db7 -> Cmaj7 (Roots: 2 -> 1 -> 0)
+            diff1 = (rt2 - rt1) % 12
+            diff2 = (rt3 - rt2) % 12
+            
+            if diff1 == 11 and diff2 == 11:
+                patterns.append(i)
+        except Exception:
+            pass
+            
+    return patterns
+
 def get_guide_tones(c):
     """
     Identifies the 3rd and 7th of a chord.
