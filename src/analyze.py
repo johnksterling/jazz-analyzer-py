@@ -18,7 +18,9 @@ def analyze_progression(chords, key):
 
 def identify_ii_v_i(roman_numerals):
     """
-    Identifies ii-V-I patterns in a list of Roman Numerals.
+    Identifies ii-V-I patterns in a list of Roman Numerals using fuzzy matching.
+    Matches based on root motion (scale degrees 2 -> 5 -> 1) OR pure root motion 
+    intervals (+5 semitones / Perfect 4th up) to handle complex extensions.
     Returns a list of indices where a ii-V-I starts.
     """
     patterns = []
@@ -27,11 +29,33 @@ def identify_ii_v_i(roman_numerals):
         r2 = roman_numerals[i+1]
         r3 = roman_numerals[i+2]
         
-        # Check for ii - V - I (or variations like ii7 - V7 - I7)
-        if (r1.romanNumeral == 'ii' or r1.romanNumeral == 'II') and \
-           (r2.romanNumeral == 'V') and \
-           (r3.romanNumeral == 'I'):
+        # Method A: Check for root movement: 2 -> 5 -> 1
+        sd1 = getattr(r1, 'scaleDegree', None)
+        sd2 = getattr(r2, 'scaleDegree', None)
+        sd3 = getattr(r3, 'scaleDegree', None)
+        
+        if sd1 == 2 and sd2 == 5 and sd3 == 1:
             patterns.append(i)
+            continue
+            
+        # Method B: Root-Motion Fuzzy Matching (Down a 5th / Up a 4th)
+        try:
+            # Get the pitch classes of the roots
+            rt1 = r1.root().pitchClass
+            rt2 = r2.root().pitchClass
+            rt3 = r3.root().pitchClass
+            
+            # Up a perfect 4th is +5 semitones (or Down a 5th is -7 == +5 mod 12)
+            diff1 = (rt2 - rt1) % 12
+            diff2 = (rt3 - rt2) % 12
+            
+            if diff1 == 5 and diff2 == 5:
+                # Found a ii-V-I sequence based on root motion!
+                patterns.append(i)
+        except Exception:
+            # If the chord is too mangled to have a root, skip it
+            pass
+            
     return patterns
 
 def get_guide_tones(c):
