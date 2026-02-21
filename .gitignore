@@ -164,5 +164,7 @@ cython_debug/
 # VS Code
 .vscode/
 
-# macOS
-.DS_Store
+# Project specific
+output/
+*.mid
+*.musicxml
