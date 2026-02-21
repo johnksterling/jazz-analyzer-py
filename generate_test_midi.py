@@ -1,17 +1,17 @@
 import mido
 from mido import Message, MidiFile, MidiTrack
 
-def generate_ii_v_i_midi(filename="test_ii_v_i_chromatic.mid"):
+def generate_tritone_sub_midi(filename="test_tritone_sub.mid"):
     mid = MidiFile()
     track = MidiTrack()
     mid.tracks.append(track)
 
     # Dm7 (D3, F3, A3, C4)
-    # G7#11 (G3, B3, D4, F4, C#5) - C# is non-diatonic in C major
+    # Db7 (Db3, F3, Ab3, Cb4) -> 61, 65, 68, 71
     # Cmaj7 (C3, E3, G3, B3)
     chords = [
         [62, 65, 69, 72],       # Dm7
-        [67, 71, 74, 77, 73],   # G7 with C# (non-diatonic)
+        [61, 65, 68, 71],       # Db7 (Tritone sub for G7)
         [60, 64, 67, 71]        # Cmaj7
     ]
 
@@ -32,4 +32,4 @@ def generate_ii_v_i_midi(filename="test_ii_v_i_chromatic.mid"):
     print(f"Generated {filename}")
 
 if __name__ == "__main__":
-    generate_ii_v_i_midi()
+    generate_tritone_sub_midi()

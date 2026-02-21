@@ -24,7 +24,11 @@ Rebuilding the jazz chart analysis tool using a modular Python-based approach to
 - Integrate visual annotations based on the analysis (e.g., coloring non-diatonic notes, labeling guide tones).
 
 ## Implementation Steps
-1. **Initialize Project:** Set up Python virtual environment and `requirements.txt`.
-2. **Scaffold Modules:** Create the directory structure and empty module files.
-3. **Core Pipeline:** Implement a basic MIDI-to-MusicXML conversion to verify the toolchain.
-4. **Iterative Feature Addition:** Build out the analysis engine and annotation rendering incrementally.
+1. **Initialize Project:** Set up Python virtual environment and `requirements.txt`. (Completed)
+2. **Scaffold Modules:** Create the directory structure and empty module files. (Completed)
+3. **Core Pipeline:** Implement a basic MIDI-to-MusicXML conversion to verify the toolchain. (Completed)
+4. **Harmonic Quantization (Current Focus):** Group unquantized human performances into structural chords.
+   - Segment the timeline into "buckets" (e.g., half-measure or beat level).
+   - Consolidate pitches within each bucket into a single chord.
+   - Discard passing tones or short melody notes to determine the fundamental harmony.
+5. **Iterative Feature Addition:** Build out the analysis engine and annotation rendering incrementally.
