@@ -1,4 +1,4 @@
-from music21 import chord, stream
+from music21 import chord, stream, instrument, note
 
 def extract_chords(score):
     """
@@ -6,10 +6,8 @@ def extract_chords(score):
     Returns a list of music21.chord.Chord objects.
     """
     chords = []
-    # Flatten the score to get all notes/chords in a single stream
-    flat_score = score.flatten()
     
-    # We can use chordify to combine notes from different tracks into chords
+    # We use chordify to combine notes from different tracks into chords
     chords_stream = score.chordify()
     
     for element in chords_stream.recurse():
