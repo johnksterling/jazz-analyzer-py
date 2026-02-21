@@ -1,6 +1,6 @@
 from src.source import load_midi
 from src.render import render_to_musicxml, annotate_score
-from src.parse import extract_chords, get_chord_names
+from src.parse import quantize_harmony, get_chord_names
 from src.analyze import detect_key, analyze_progression, identify_ii_v_i
 from music21 import instrument, stream
 import os
@@ -13,7 +13,7 @@ def main():
 
     input_midi = sys.argv[1]
     base_name = os.path.splitext(os.path.basename(input_midi))[0]
-    output_xml = f"output/{base_name}_annotated.musicxml"
+    output_xml = f"output/{base_name}_quantized.musicxml"
     
     print(f"Loading {input_midi}...")
     score = load_midi(input_midi)
@@ -35,10 +35,13 @@ def main():
             key = None
 
         if key:
-            # Parse chords
-            print("Extracting chords...")
-            chords = extract_chords(score)
-            print(f"Detected {len(chords)} chords. Showing first 10:")
+            # Quantize Harmony
+            print("Quantizing harmony into 2-beat buckets...")
+            quantized_part = quantize_harmony(score, beats_per_chord=2.0)
+            
+            # Extract chords from the quantized part
+            chords = list(quantized_part.getElementsByClass('Chord'))
+            print(f"Detected {len(chords)} quantized chords. Showing first 10:")
             for c in chords[:10]:
                 print(f"  - {c.pitchedCommonName} (Offset: {c.offset})")
 
@@ -51,9 +54,13 @@ def main():
             print(f"Found {len(ii_v_i_indices)} ii-V-I progressions.")
 
             # Annotate
-            print("Annotating score with guide tones and non-diatonic highlights...")
+            # Create a new score for rendering with the quantized part
+            render_score = stream.Score()
+            render_score.insert(0, quantized_part)
+            
+            print("Annotating quantized score with guide tones and non-diatonic highlights...")
             try:
-                annotated_score = annotate_score(score, key)
+                annotated_score = annotate_score(render_score, key)
 
                 print(f"Rendering to {output_xml}...")
                 if render_to_musicxml(annotated_score, output_xml):
