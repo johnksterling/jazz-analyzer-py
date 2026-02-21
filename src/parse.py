@@ -32,24 +32,19 @@ def quantize_harmony(score, beats_per_chord=2.0):
                     window_pitches.append(n.pitch)
         
         if window_pitches:
-            # Sort pitches from lowest to highest
-            window_pitches.sort()
+            # Create a unique set of pitch classes to avoid duplicates
+            unique_pitch_classes = sorted(list(set(p.pitchClass for p in window_pitches)))
             
-            # The lowest note is our bass note
-            bass_pitch = window_pitches[0]
-            
-            # Create a reduced list of pitches, keeping only unique pitch classes 
-            # while preserving the original bass note's octave
-            unique_pitch_classes = set()
-            reduced_pitches = [bass_pitch]
-            unique_pitch_classes.add(bass_pitch.pitchClass)
-            
-            for p in window_pitches[1:]:
-                if p.pitchClass not in unique_pitch_classes:
-                    reduced_pitches.append(p)
-                    unique_pitch_classes.add(p.pitchClass)
+            # Map all pitch classes to Octave 4 for a clean, playable cluster
+            reduced_pitches = []
+            for pc in unique_pitch_classes:
+                new_pitch = note.Pitch(pc)
+                new_pitch.octave = 4
+                reduced_pitches.append(new_pitch)
             
             if reduced_pitches:
+                # Sort the pitches within the octave so the chord is structured correctly
+                reduced_pitches.sort()
                 new_chord = chord.Chord(reduced_pitches)
                 new_chord.duration.quarterLength = beats_per_chord
                 quantized_stream.insert(current_offset, new_chord)

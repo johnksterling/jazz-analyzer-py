@@ -1,11 +1,16 @@
 import os
-from music21 import chord, note
+from music21 import chord, note, clef
 
 def render_to_musicxml(score, output_path):
     """
     Renders a music21 score to a MusicXML file.
+    Ensures Treble Clef for lead sheet readability.
     """
     try:
+        # Explicitly set Treble Clef for all parts
+        for p in score.parts:
+            p.insert(0, clef.TrebleClef())
+            
         # Ensure the directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         score.write('musicxml', fp=output_path)
