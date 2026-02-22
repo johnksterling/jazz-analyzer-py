@@ -27,8 +27,8 @@ def quantize_harmony(score, beats_per_chord=2.0):
                 overlap_duration = overlap_end - overlap_start
                 
                 # Only include notes that sustain for a significant portion of the window
-                # (e.g., at least 25% of the window or a 16th note, whichever is smaller)
-                if overlap_duration > min(0.25, beats_per_chord * 0.25):
+                # (e.g., at least 1.0 beat / a quarter note) to filter out fast melody lines
+                if overlap_duration >= 1.0:
                     window_pitches.append(n.pitch)
         
         if window_pitches:
