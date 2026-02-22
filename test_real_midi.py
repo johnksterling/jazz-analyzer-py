@@ -1,7 +1,7 @@
 from src.source import load_midi
 from src.render import render_to_musicxml, annotate_score
 from src.parse import quantize_harmony, get_chord_names
-from src.analyze import detect_key, analyze_progression, identify_ii_v_i, identify_tritone_subs
+from src.analyze import detect_key, detect_local_keys, analyze_progression, identify_ii_v_i, identify_tritone_subs
 from music21 import instrument, stream
 import os
 import sys
@@ -26,19 +26,20 @@ def main():
             print("No pitched tracks found. Exiting.")
             return
 
-        # Analyze key
+        # Quantize Harmony FIRST so we have clean windows for key detection
+        print("Quantizing harmony into 2-beat buckets...")
+        quantized_part = quantize_harmony(score, beats_per_chord=2.0)
+        
+        # Analyze local keys
         try:
-            key = detect_key(score)
-            print(f"Analyzed Key: {key}")
+            local_keys, global_key = detect_local_keys(quantized_part, window_size=16.0)
+            print(f"Analyzed Global Key: {global_key}")
+            print(f"Detected {len(local_keys)} local key windows.")
         except Exception as e:
             print(f"Failed to detect key: {e}")
-            key = None
+            local_keys = None
 
-        if key:
-            # Quantize Harmony
-            print("Quantizing harmony into 2-beat buckets...")
-            quantized_part = quantize_harmony(score, beats_per_chord=2.0)
-            
+        if local_keys:
             # Extract chords from the quantized part
             chords = list(quantized_part.getElementsByClass('Chord'))
             print(f"Detected {len(chords)} quantized chords. Showing first 10:")
@@ -46,8 +47,8 @@ def main():
                 print(f"  - {c.pitchedCommonName} (Offset: {c.offset})")
 
             # Roman Numeral Analysis
-            print("Performing Roman Numeral Analysis...")
-            roman_numerals = analyze_progression(chords, key)
+            print("Performing Context-Aware Roman Numeral Analysis...")
+            roman_numerals = analyze_progression(chords, local_keys, window_size=16.0)
             
             # Detect Patterns
             ii_v_i_indices = identify_ii_v_i(roman_numerals)
@@ -63,7 +64,7 @@ def main():
             
             print("Annotating quantized score with guide tones, non-diatonic highlights, and Roman Numerals...")
             try:
-                annotated_score = annotate_score(render_score, key, roman_numerals)
+                annotated_score = annotate_score(render_score, global_key, roman_numerals)
 
                 print(f"Rendering to {output_xml}...")
                 if render_to_musicxml(annotated_score, output_xml):
