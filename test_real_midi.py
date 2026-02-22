@@ -64,7 +64,7 @@ def main():
             
             print("Annotating quantized score with guide tones, non-diatonic highlights, and Roman Numerals...")
             try:
-                annotated_score = annotate_score(render_score, global_key, roman_numerals)
+                annotated_score = annotate_score(render_score, global_key, roman_numerals, local_keys)
 
                 print(f"Rendering to {output_xml}...")
                 if render_to_musicxml(annotated_score, output_xml):

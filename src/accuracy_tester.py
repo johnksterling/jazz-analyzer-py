@@ -60,6 +60,14 @@ def test_accuracy(midi_file, mako_file):
         print(f"{gt:<20} | {an:<20} {match}")
 
 if __name__ == '__main__':
-    midi = "data/autumn_leaves_bushgrafts.mid"
-    mako = "data/openbook/src/openbook/autumn_leaves.ly.mako"
+    if len(sys.argv) < 3:
+        print("Usage: python src/accuracy_tester.py <midi_file> <mako_file>")
+        # Fallback to defaults if no args provided
+        midi = "data/autumn_leaves_bushgrafts.mid"
+        mako = "data/openbook/src/openbook/autumn_leaves.ly.mako"
+        print(f"No arguments provided. Running default test: {midi}")
+    else:
+        midi = sys.argv[1]
+        mako = sys.argv[2]
+        
     test_accuracy(midi, mako)

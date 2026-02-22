@@ -1,10 +1,16 @@
-from music21 import roman, chord
+from music21 import roman, chord, key as music21_key
 
 def detect_key(score):
     """
     Analyzes the global key of the score.
+    Returns a music21.key.Key object.
     """
-    return score.analyze('key')
+    try:
+        k = score.analyze('key')
+        return k
+    except Exception:
+        # Default to C Major if analysis fails
+        return music21_key.Key('C')
 
 def detect_local_keys(quantized_stream, window_size=16.0):
     """
@@ -17,17 +23,21 @@ def detect_local_keys(quantized_stream, window_size=16.0):
     global_key = detect_key(quantized_stream)
     
     current_offset = 0.0
-    while current_offset < total_length:
+    while current_offset <= total_length:
         # Extract a slice of the stream for the current window
         window_stream = quantized_stream.getElementsByOffset(
             current_offset, 
             current_offset + window_size
         ).stream()
         
-        try:
-            # If the window is empty, this will throw an exception
-            local_key = window_stream.analyze('key')
-        except Exception:
+        local_key = None
+        if len(window_stream.flatten().notes) >= 3:
+            try:
+                local_key = window_stream.analyze('key')
+            except Exception:
+                pass
+        
+        if local_key is None:
             # Fall back to previous key or global key
             if current_offset > 0 and (current_offset - window_size) in local_keys:
                 local_key = local_keys[current_offset - window_size]

@@ -9,27 +9,28 @@ def quantize_harmony(score, beats_per_chord=2.0):
     total_length = score.highestTime
     
     # Flatten the score once for efficient note extraction
-    all_notes = score.flatten().getElementsByClass(note.Note)
+    # We need to look for both Note and Chord objects
+    all_elements = score.flatten().getElementsByClass(['Note', 'Chord'])
     
     current_offset = 0.0
-    while current_offset < total_length:
+    while current_offset <= total_length:
         window_end = current_offset + beats_per_chord
         
-        # Find all notes that overlap with this window
+        # Find all notes/chords that overlap with this window
         window_pitches = []
-        for n in all_notes:
-            # Check for overlap: note starts before window ends AND ends after window starts
-            note_end = n.offset + n.duration.quarterLength
-            if n.offset < window_end and note_end > current_offset:
-                # Calculate the duration of the overlap within this specific window
-                overlap_start = max(n.offset, current_offset)
-                overlap_end = min(note_end, window_end)
+        for el in all_elements:
+            # Check for overlap
+            el_end = el.offset + el.duration.quarterLength
+            if el.offset < window_end and el_end > current_offset:
+                overlap_start = max(el.offset, current_offset)
+                overlap_end = min(el_end, window_end)
                 overlap_duration = overlap_end - overlap_start
                 
-                # Only include notes that sustain for a significant portion of the window
-                # (e.g., at least 1.0 beat / a quarter note) to filter out fast melody lines
-                if overlap_duration >= 1.0:
-                    window_pitches.append(n.pitch)
+                if overlap_duration >= 0.25:
+                    if hasattr(el, 'pitches'):
+                        window_pitches.extend(el.pitches)
+                    elif hasattr(el, 'pitch'):
+                        window_pitches.append(el.pitch)
         
         if window_pitches:
             # Create a unique set of pitch classes to avoid duplicates
