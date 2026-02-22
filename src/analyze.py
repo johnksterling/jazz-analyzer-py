@@ -2,18 +2,65 @@ from music21 import roman, chord
 
 def detect_key(score):
     """
-    Analyzes the key of the score.
+    Analyzes the global key of the score.
     """
     return score.analyze('key')
 
-def analyze_progression(chords, key):
+def detect_local_keys(quantized_stream, window_size=16.0):
     """
-    Performs Roman Numeral analysis on a list of chords given a key.
+    Uses a sliding window to detect local key centers across the timeline.
+    Returns a dictionary mapping start_offset -> music21.key.Key object.
+    Falls back to the global key if a local window cannot be identified.
+    """
+    local_keys = {}
+    total_length = quantized_stream.highestTime
+    global_key = detect_key(quantized_stream)
+    
+    current_offset = 0.0
+    while current_offset < total_length:
+        # Extract a slice of the stream for the current window
+        window_stream = quantized_stream.getElementsByOffset(
+            current_offset, 
+            current_offset + window_size
+        ).stream()
+        
+        try:
+            # If the window is empty, this will throw an exception
+            local_key = window_stream.analyze('key')
+        except Exception:
+            # Fall back to previous key or global key
+            if current_offset > 0 and (current_offset - window_size) in local_keys:
+                local_key = local_keys[current_offset - window_size]
+            else:
+                local_key = global_key
+                
+        local_keys[current_offset] = local_key
+        current_offset += window_size
+        
+    return local_keys, global_key
+
+def analyze_progression(chords, local_keys, window_size=16.0):
+    """
+    Performs Roman Numeral analysis on a list of chords given local key centers.
     """
     analysis = []
+    
+    # If a single key was passed instead of a dict, wrap it
+    if not isinstance(local_keys, dict):
+        local_keys = {0.0: local_keys}
+        
     for c in chords:
-        rn = roman.romanNumeralFromChord(c, key)
-        analysis.append(rn)
+        # Find the relevant local key based on the chord's offset
+        window_start = (c.offset // window_size) * window_size
+        current_key = local_keys.get(window_start, list(local_keys.values())[0])
+        
+        try:
+            rn = roman.romanNumeralFromChord(c, current_key)
+            analysis.append(rn)
+        except Exception:
+            # Create a dummy Roman Numeral if analysis fails
+            analysis.append(roman.RomanNumeral('I', current_key))
+            
     return analysis
 
 def identify_ii_v_i(roman_numerals):
