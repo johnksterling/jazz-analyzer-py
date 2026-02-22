@@ -1,10 +1,16 @@
-from music21 import roman, chord
+from music21 import roman, chord, key as music21_key
 
 def detect_key(score):
     """
     Analyzes the global key of the score.
+    Returns a music21.key.Key object.
     """
-    return score.analyze('key')
+    try:
+        k = score.analyze('key')
+        return k
+    except Exception:
+        # Default to C Major if analysis fails
+        return music21_key.Key('C')
 
 def detect_local_keys(quantized_stream, window_size=16.0):
     """
@@ -17,17 +23,21 @@ def detect_local_keys(quantized_stream, window_size=16.0):
     global_key = detect_key(quantized_stream)
     
     current_offset = 0.0
-    while current_offset < total_length:
+    while current_offset <= total_length:
         # Extract a slice of the stream for the current window
         window_stream = quantized_stream.getElementsByOffset(
             current_offset, 
             current_offset + window_size
         ).stream()
         
-        try:
-            # If the window is empty, this will throw an exception
-            local_key = window_stream.analyze('key')
-        except Exception:
+        local_key = None
+        if len(window_stream.flatten().notes) >= 3:
+            try:
+                local_key = window_stream.analyze('key')
+            except Exception:
+                pass
+        
+        if local_key is None:
             # Fall back to previous key or global key
             if current_offset > 0 and (current_offset - window_size) in local_keys:
                 local_key = local_keys[current_offset - window_size]
@@ -39,10 +49,114 @@ def detect_local_keys(quantized_stream, window_size=16.0):
         
     return local_keys, global_key
 
+def guess_jazz_chord(chord_obj, local_key):
+    """
+    Attempts to identify the chord symbol for a given cluster of notes.
+    If music21 fails, it uses the local key to guess implied roots (ii, V, I)
+    to see if the cluster is a rootless jazz voicing.
+    Returns a string like 'Cm7' or '?'
+    """
+    from music21 import harmony
+    
+    try:
+        # First, see if music21 can identify it natively
+        cs = harmony.chordSymbolFromChord(chord_obj)
+        if cs.figure and "Cannot" not in cs.figure:
+            return cs.figure
+    except Exception:
+        pass
+        
+    # If music21 failed, it's likely a messy cluster or rootless voicing.
+    # We will temporarily add diatonic roots from the local key to see if it 
+    # magically resolves into a clean, recognizable jazz chord.
+    
+    # Try adding I, ii, IV, V roots
+    test_degrees = [1, 2, 4, 5]
+    for degree in test_degrees:
+        try:
+            root_pitch = local_key.pitchFromDegree(degree)
+            if root_pitch:
+                root_pitch.octave = 3 # Put it in the bass
+                
+                # Create a temporary test chord
+                test_chord = chord.Chord([p for p in chord_obj.pitches] + [root_pitch])
+                cs = harmony.chordSymbolFromChord(test_chord)
+                
+                # If it successfully identified a standard 7th or 9th chord
+                if cs.figure and "Cannot" not in cs.figure:
+                    return cs.figure
+        except Exception:
+            continue
+            
+    # If all else fails, just return a generic representation of the lowest note
+    if chord_obj.pitches:
+        lowest = min(chord_obj.pitches)
+        return f"{lowest.name}?"
+        
+    return "?"
+
+def contextualize_chords(chords, local_keys, window_size=16.0):
+    """
+    Heuristic algorithm to detect and "fix" rootless jazz voicings.
+    Modifies the underlying music21.chord.Chord objects in-place by adding 
+    the implied root note based on the surrounding harmonic context.
+    """
+    if not isinstance(local_keys, dict):
+        local_keys = {0.0: local_keys}
+        
+    # First pass: get the raw Roman Numerals
+    raw_rns = []
+    keys_for_chords = []
+    for c in chords:
+        window_start = (c.offset // window_size) * window_size
+        current_key = local_keys.get(window_start, list(local_keys.values())[0])
+        keys_for_chords.append(current_key)
+        try:
+            raw_rns.append(roman.romanNumeralFromChord(c, current_key))
+        except Exception:
+            raw_rns.append(None)
+            
+    # Second pass: apply heuristic fixes
+    for i in range(len(chords)):
+        rn = raw_rns[i]
+        if not rn: continue
+        
+        current_key = keys_for_chords[i]
+        sd = getattr(rn, 'scaleDegree', None)
+        
+        # Look ahead and behind for context
+        next_sd = getattr(raw_rns[i+1], 'scaleDegree', None) if i + 1 < len(raw_rns) and raw_rns[i+1] else None
+        prev_sd = getattr(raw_rns[i-1], 'scaleDegree', None) if i - 1 >= 0 and raw_rns[i-1] else None
+        
+        # Heuristic 1: Rootless ii chord (Looks like IV or iv, followed by V)
+        if sd == 4 and next_sd == 5:
+            # Add the ii root (scale degree 2)
+            root_pitch = current_key.pitchFromDegree(2)
+            root_pitch.octave = 3 # Put it in the bass
+            chords[i].add(root_pitch)
+            
+        # Heuristic 2: Rootless V chord (Looks like viio or vii half-dim, followed by I or i)
+        elif sd == 7 and (next_sd == 1 or next_sd is None):
+            # Add the V root (scale degree 5)
+            root_pitch = current_key.pitchFromDegree(5)
+            root_pitch.octave = 3
+            chords[i].add(root_pitch)
+            
+        # Heuristic 3: Rootless I chord (Looks like iii, preceded by V)
+        elif sd == 3 and prev_sd == 5:
+            # Add the I root (scale degree 1)
+            root_pitch = current_key.pitchFromDegree(1)
+            root_pitch.octave = 3
+            chords[i].add(root_pitch)
+
 def analyze_progression(chords, local_keys, window_size=16.0):
     """
     Performs Roman Numeral analysis on a list of chords given local key centers.
+    Applies context-aware heuristics to fix rootless voicings before analysis.
     """
+    # Fix rootless voicings in-place
+    contextualize_chords(chords, local_keys, window_size)
+    
     analysis = []
     
     # If a single key was passed instead of a dict, wrap it

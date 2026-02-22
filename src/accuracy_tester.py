@@ -22,16 +22,28 @@ def test_accuracy(midi_file, mako_file):
     print(f"\\nAnalyzing MIDI ({len(score.parts)} tracks)...")
     quantized_part = quantize_harmony(score, beats_per_chord=2.0)
     
+    # Run the full analysis pipeline so context-aware heuristics are applied
+    from src.analyze import detect_local_keys, analyze_progression, guess_jazz_chord
+    try:
+        local_keys, global_key = detect_local_keys(quantized_part, window_size=16.0)
+        chords = list(quantized_part.getElementsByClass('Chord'))
+        # This function modifies the chords in place to fix rootless voicings
+        analyze_progression(chords, local_keys, window_size=16.0)
+    except Exception as e:
+        print(f"Analysis failed: {e}")
+        chords = list(quantized_part.getElementsByClass('Chord'))
+        local_keys = {0.0: global_key} if 'global_key' in locals() else {}
+    
     # Extract chords from pipeline
     analyzed_chords = []
-    chords = list(quantized_part.getElementsByClass('Chord'))
     
     for c in chords:
-        try:
-            cs = harmony.chordSymbolFromChord(c)
-            analyzed_chords.append(cs.figure)
-        except Exception:
-            analyzed_chords.append("?")
+        window_start = (c.offset // 16.0) * 16.0
+        current_key = local_keys.get(window_start, list(local_keys.values())[0] if local_keys else None)
+        
+        # Use our new intelligent jazz chord guesser
+        symbol = guess_jazz_chord(c, current_key) if current_key else "?"
+        analyzed_chords.append(symbol)
             
     print(f"Analyzed Chords (2-beat buckets): {len(analyzed_chords)}")
     
@@ -48,6 +60,14 @@ def test_accuracy(midi_file, mako_file):
         print(f"{gt:<20} | {an:<20} {match}")
 
 if __name__ == '__main__':
-    midi = "data/autumn_leaves_bushgrafts.mid"
-    mako = "data/openbook/src/openbook/autumn_leaves.ly.mako"
+    if len(sys.argv) < 3:
+        print("Usage: python src/accuracy_tester.py <midi_file> <mako_file>")
+        # Fallback to defaults if no args provided
+        midi = "data/autumn_leaves_bushgrafts.mid"
+        mako = "data/openbook/src/openbook/autumn_leaves.ly.mako"
+        print(f"No arguments provided. Running default test: {midi}")
+    else:
+        midi = sys.argv[1]
+        mako = sys.argv[2]
+        
     test_accuracy(midi, mako)

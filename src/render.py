@@ -20,27 +20,34 @@ def render_to_musicxml(score, output_path):
         print(f"Error rendering to MusicXML: {e}")
         return False
 
-def annotate_score(score, key, roman_numerals=None):
+def annotate_score(score, key, roman_numerals=None, local_keys=None):
     """
     Annotates the score with guide tones, non-diatonic highlights, Roman Numerals,
     and actual Chord Symbols (e.g., Gmin7).
     Modifies the score in place.
     """
-    from src.analyze import get_guide_tones, is_diatonic
+    from src.analyze import get_guide_tones, is_diatonic, guess_jazz_chord
     from music21 import harmony
     
     # Extract chords in the same order they would be analyzed
     chords = list(score.flatten().getElementsByClass(chord.Chord))
     
     for i, el in enumerate(chords):
-        # 1. Add Chord Symbols (Lead Sheet style)
+        # Determine the local key for this chord
+        current_key = key
+        if local_keys:
+            window_start = (el.offset // 16.0) * 16.0
+            current_key = local_keys.get(window_start, key)
+            
+        # 1. Add Chord Symbols (Lead Sheet style) using the intelligent guesser
         try:
-            cs = harmony.chordSymbolFromChord(el)
-            # Find the part to insert the chord symbol into (above the staff)
-            # In our current pipeline, we only have one part in the score being rendered.
-            score.parts[0].insert(el.offset, cs)
+            symbol_str = guess_jazz_chord(el, current_key)
+            if symbol_str != "?":
+                cs = harmony.ChordSymbol(symbol_str)
+                # Find the part to insert the chord symbol into (above the staff)
+                score.parts[0].insert(el.offset, cs)
         except Exception:
-            # If identification fails, skip the symbol
+            # If identification fails completely, skip the symbol
             pass
 
         guide_tones = get_guide_tones(el)
