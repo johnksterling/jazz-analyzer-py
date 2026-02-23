@@ -27,8 +27,8 @@ def main():
             return
 
         # Quantize Harmony FIRST so we have clean windows for key detection
-        print("Quantizing harmony into 2-beat buckets...")
-        quantized_part = quantize_harmony(score, beats_per_chord=2.0)
+        print("Quantizing harmony into 4-beat buckets...")
+        quantized_part = quantize_harmony(score, beats_per_chord=4.0)
         
         # Analyze local keys
         try:
@@ -44,7 +44,8 @@ def main():
             chords = list(quantized_part.getElementsByClass('Chord'))
             print(f"Detected {len(chords)} quantized chords. Showing first 10:")
             for c in chords[:10]:
-                print(f"  - {c.pitchedCommonName} (Offset: {c.offset})")
+                name = getattr(c, 'chord_symbol_figure', c.pitchedCommonName)
+                print(f"  - {name} (Offset: {c.offset})")
 
             # Roman Numeral Analysis
             print("Performing Context-Aware Roman Numeral Analysis...")
