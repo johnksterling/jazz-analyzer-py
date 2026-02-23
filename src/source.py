@@ -36,7 +36,27 @@ def load_midi(file_path):
         # Partition by instrument to separate channels into tracks (helps music21 structure)
         partitioned = instrument.partitionByInstrument(score)
         if partitioned is not None:
-            score = partitioned
+            # Filter to isolate Piano and Bass (and general rhythm section)
+            allowed_classes = (
+                instrument.KeyboardInstrument,
+                instrument.ElectricBass,
+                instrument.AcousticBass,
+                instrument.FretlessBass,
+                instrument.Contrabass,
+                instrument.Guitar,
+            )
+            filtered_score = score.__class__()
+            for p in partitioned.parts:
+                inst = p.getInstrument()
+                if isinstance(inst, allowed_classes):
+                    filtered_score.insert(0, p)
+            
+            # If we successfully isolated rhythm section tracks, use them.
+            # Otherwise fallback to the partitioned score (in case of un-labeled tracks).
+            if len(filtered_score.parts) > 0:
+                score = filtered_score
+            else:
+                score = partitioned
             
         return score
     except Exception as e:
