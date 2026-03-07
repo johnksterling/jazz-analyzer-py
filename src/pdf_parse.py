@@ -38,6 +38,7 @@ def clean_ocr_chord(ocr_text):
         'buid': 'bm7',
         'uid': 'm7',
         'ui': 'm',
+        'mi9': 'm9',
         'mi': 'm',
         'le': 'b',
         '7H': '7#',
@@ -47,6 +48,13 @@ def clean_ocr_chord(ocr_text):
         'p4': 'maj',
         'Bruit': 'Bmin7',
         'eid': 'm7',
+        'ehi9': 'Bbmi9', # Common misread in ACB font
+        'é7i': 'Eb7',
+        '$m': 'Am',
+        'Onid': 'Dmi7',
+        'Cnii9': 'Cmi9',
+        'Abwaed': 'Abmaj7',
+        'efuid': 'Ebm7',
     }
     
     for k, v in general_replacements.items():
