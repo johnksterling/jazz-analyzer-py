@@ -61,14 +61,18 @@ def clean_ocr_chord(ocr_text):
         'Cnii9': 'Cmi9',
         'Abwaed': 'Abmaj7',
         'efuid': 'Ebm7',
+        'MA7': 'maj7',
+        'ma9': 'M9',
+        'maj9': 'M9',
+        'Maj7': 'maj7',
     }
     
     for k, v in general_replacements.items():
         if k in text:
             text = text.replace(k, v)
             
-    # Remove obvious noise
-    text = re.sub(r'[^a-zA-Z0-9#b\-\(\)ø^]', '', text)
+    # Remove obvious noise (now excluding parentheses entirely)
+    text = re.sub(r'[^a-zA-Z0-9#b\-\ø^]', '', text)
     
     # Clean up any trailing garbage characters that slipped through
     text = text.strip('()')
@@ -107,14 +111,14 @@ def align_chords_to_staves(chords_data, staves_data, barlines_data, start_measur
         
     global_measure_count = start_measure
     
-    for sys in sorted(system_chords.keys()):
-        chords = system_chords[sys]
+    for sys_idx in range(len(staves_data)):
+        chords = system_chords.get(sys_idx, [])
         chords.sort(key=lambda c: c['x'])
         
-        bars = barlines_data.get(sys, [])
-        if not bars:
-            # Fallback if no barlines detected for this system
-            bars = [500, 1000, 1500, 2000]
+        bars = barlines_data.get(sys_idx, [])
+        if len(bars) < 2:
+            # Fallback if no barlines detected for this system (assume 4 measures)
+            bars = [500, 1000, 1500, 2000, 2500]
             
         for c in chords:
             sym = clean_ocr_chord(c['text'])
