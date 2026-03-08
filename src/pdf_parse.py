@@ -12,6 +12,12 @@ def clean_ocr_chord(ocr_text):
     
     # Exact or highly specific replacements first
     exact_replacements = {
+        'eb7it)': 'Eb7#9',
+        'eb7t)': 'Eb7#9',
+        'éma7': 'Ebmaj7',
+        'abe)': 'Ab7',
+        'éua7': 'Ebmaj7',
+        'A7be)': 'Ab7',
         'Abuill': 'Abm11',
         "gpa7k’)": 'Gbmaj7',
         "ark)": 'Am7', # Context: likely Am7 or just m7
@@ -147,9 +153,16 @@ def align_chords_to_staves(chords_data, staves_data, barlines_data, start_measur
                 
             s.insert(global_offset, sym)
             
-        # Advance global measure count by the number of measures in this system
-        # Number of measures is roughly number of barlines minus 1
+        # Add visible placeholder notes to every measure so the renderer doesn't collapse them
         num_measures = max(len(bars) - 1, 4)
+        for i in range(num_measures):
+            # LilyPond drops chords attached to pure rests. We must use a Note.
+            # We use a middle C but set its notehead and stem to be invisible.
+            n = note.Note('C4', type='whole')
+            n.style.hideObjectOnPrint = True # Hide the notehead
+            s.insert((global_measure_count + i) * beats_per_measure, n)
+            
+        # Advance global measure count by the number of measures in this system
         global_measure_count += num_measures
                 
     return s, global_measure_count
