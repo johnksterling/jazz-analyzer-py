@@ -39,6 +39,10 @@ def clean_ocr_chord(ocr_text):
         if k in text:
             text = text.replace(k, v)
             
+    # More advanced cleanup for specific symbols
+    text = text.replace('min', 'm')
+    text = text.replace('ma7', 'maj7')
+    
     # General substring replacements
     general_replacements = {
         'buid': 'bm7',
@@ -71,15 +75,19 @@ def clean_ocr_chord(ocr_text):
         if k in text:
             text = text.replace(k, v)
             
-    # Remove obvious noise (now excluding parentheses entirely)
-    text = re.sub(r'[^a-zA-Z0-9#b\-\ø^]', '', text)
+    # Remove obvious noise (now excluding parentheses and forward slash)
+    text = re.sub(r'[^a-zA-Z0-9#b\-\ø^/]', '', text)
     
     # Clean up any trailing garbage characters that slipped through
     text = text.strip('()')
     
-    # Convert flat root notes from 'b' to '-' for music21 compatibility
-    # e.g., Bbmaj7 -> B-maj7, Abm7 -> A-m7
+    # Convert flat root notes and slash notes from 'b' to '-' for music21 compatibility
+    # e.g., Bbmaj7 -> B-maj7, Abm7 -> A-m7, Fm/Ab -> Fm/A-
     text = re.sub(r'^([A-G])b', r'\1-', text)
+    text = re.sub(r'/([A-G])b', r'/\1-', text)
+        
+    if text.endswith('ø'):
+        text += '7'
         
     # Try to parse with music21 to see if it's valid
     try:
