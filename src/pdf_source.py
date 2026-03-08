@@ -7,6 +7,7 @@ from PIL import Image
 import io
 import subprocess
 from src.pdf_parse import align_chords_to_staves
+from src.ai_vision import extract_chords_with_ai
 from music21 import stream, converter
 
 def run_omr(img_path):
@@ -29,9 +30,9 @@ def run_omr(img_path):
         print(f"OMR failed for {img_path}: {e}")
     return None
 
-def load_pdf(file_path, include_melody=True):
+def load_pdf(file_path, include_melody=True, use_ai_chords=True):
     """
-    Loads a scanned PDF lead sheet, extracts staff lines and chord symbols via OCR/OMR,
+    Loads a scanned PDF lead sheet, extracts staff lines and chord symbols via OCR/OMR/AI,
     and returns a music21 Score object populated with the identified harmony and melody.
     """
     try:
@@ -55,7 +56,7 @@ def load_pdf(file_path, include_melody=True):
             img_path = f"tmp_page_{page_idx}.png"
             pix.save(img_path)
             
-            # 2. Detect barlines and systems (needed for OCR alignment)
+            # 2. Detect barlines and systems (needed for alignment)
             img_data = pix.tobytes("png")
             nparr = np.frombuffer(img_data, np.uint8)
             img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -97,22 +98,46 @@ def load_pdf(file_path, include_melody=True):
                             break
             for i in system_bars: system_bars[i].sort()
             
-            # 3. OCR Pass
-            pil_img = Image.open(io.BytesIO(img_data))
-            ocr_data = pytesseract.image_to_data(pil_img, output_type=pytesseract.Output.DICT)
+            # 3. Chord Extraction (AI or OCR)
             page_chords = []
-            for i in range(len(ocr_data['text'])):
-                text = ocr_data['text'][i].strip()
-                if not text: continue
-                x, y, w, h = ocr_data['left'][i], ocr_data['top'][i], ocr_data['width'][i], ocr_data['height'][i]
+            pil_img = Image.open(io.BytesIO(img_data))
+            
+            for sys_idx, (sys_top, sys_bot) in enumerate(systems):
+                # Crop a horizontal slice from 150px above the staff to the top of the staff
+                crop_top = max(0, sys_top - 150)
+                if sys_idx > 0:
+                    crop_top = max(crop_top, systems[sys_idx-1][1] + 10)
                 
-                assigned_system = -1
-                for sys_idx, (sys_top, sys_bot) in enumerate(systems):
-                    if sys_top - 150 < y < sys_top:
-                        assigned_system = sys_idx
-                        break
-                if assigned_system != -1:
-                    page_chords.append({'text': text, 'x': x, 'y': y, 'w': w, 'h': h, 'system': assigned_system})
+                crop_box = (0, crop_top, pil_img.width, sys_top)
+                sys_slice_path = f"tmp_sys_{page_idx}_{sys_idx}.png"
+                pil_img.crop(crop_box).save(sys_slice_path)
+
+                if use_ai_chords and os.environ.get("GEMINI_API_KEY"):
+                    print(f"  AI extracting chords for system {sys_idx}...")
+                    ai_chords = extract_chords_with_ai(sys_slice_path)
+                    for ac in ai_chords:
+                        page_chords.append({
+                            'text': ac.chord_symbol,
+                            'x': ac.horizontal_percentage * pil_img.width,
+                            'w': 50, # Approximate width
+                            'system': sys_idx
+                        })
+                else:
+                    # Fallback to Tesseract OCR
+                    print(f"  OCR extracting chords for system {sys_idx}...")
+                    ocr_data = pytesseract.image_to_data(Image.open(sys_slice_path), output_type=pytesseract.Output.DICT)
+                    for i in range(len(ocr_data['text'])):
+                        text = ocr_data['text'][i].strip()
+                        if not text: continue
+                        page_chords.append({
+                            'text': text,
+                            'x': ocr_data['left'][i],
+                            'w': ocr_data['width'][i],
+                            'system': sys_idx
+                        })
+                
+                if os.path.exists(sys_slice_path):
+                    os.remove(sys_slice_path)
             
             # 3.5 Grouping and Aligning Chords
             grouped_chords = []
@@ -122,10 +147,10 @@ def load_pdf(file_path, include_melody=True):
                 for nxt in page_chords[1:]:
                     bars = system_bars.get(curr['system'], [])
                     if nxt['system'] == curr['system'] and \
-                       not any(curr['x'] + curr['w'] < bx < nxt['x'] for bx in bars) and \
-                       nxt['x'] - (curr['x'] + curr['w']) < 40:
+                       not any(curr['x'] + curr.get('w', 0) < bx < nxt['x'] for bx in bars) and \
+                       nxt['x'] - (curr['x'] + curr.get('w', 0)) < 40:
                         curr['text'] += nxt['text']
-                        curr['w'] = (nxt['x'] + nxt['w']) - curr['x']
+                        curr['w'] = (nxt['x'] + nxt.get('w', 0)) - curr['x']
                     else:
                         grouped_chords.append(curr)
                         curr = nxt
@@ -139,15 +164,12 @@ def load_pdf(file_path, include_melody=True):
             if include_melody:
                 page_score = run_omr(img_path)
                 if page_score:
-                    # Shift offsets of OMR elements to the current measure
                     shift = current_measure * 4.0
                     for p in page_score.parts:
                         for el in p.flatten():
-                            # We don't want to double-insert barlines or metadata
-                            if el.classSortOrder >= 0: # Notes, chords, rests, etc.
+                            if el.classSortOrder >= 0:
                                 melody_part.insert(el.offset + shift, el)
                                 
-            # Cleanup temp image
             if os.path.exists(img_path):
                 os.remove(img_path)
                 
@@ -156,11 +178,6 @@ def load_pdf(file_path, include_melody=True):
         combined_score.insert(0, melody_part)
         combined_score.insert(0, chord_part)
         return combined_score
-        
-    except Exception as e:
-        print(f"Error loading PDF file {file_path}: {e}")
-        return None
-
         
     except Exception as e:
         print(f"Error loading PDF file {file_path}: {e}")

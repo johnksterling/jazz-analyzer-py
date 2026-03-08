@@ -1,4 +1,5 @@
 import os
+import subprocess
 from music21 import chord, note, clef
 
 def render_to_musicxml(score, output_path):
@@ -18,6 +19,42 @@ def render_to_musicxml(score, output_path):
         return True
     except Exception as e:
         print(f"Error rendering to MusicXML: {e}")
+        return False
+
+def render_to_pdf(score, output_path):
+    """
+    Renders a music21 score to a PDF via LilyPond.
+    This provides a high-quality, professional engraver output.
+    """
+    base_path = os.path.splitext(output_path)[0]
+    xml_path = f"{base_path}.musicxml"
+    ly_path = f"{base_path}.ly"
+    
+    try:
+        # 1. First generate the MusicXML
+        if not render_to_musicxml(score, xml_path):
+            return False
+            
+        # 2. Convert MusicXML to LilyPond (.ly)
+        print(f"Converting to LilyPond format...")
+        subprocess.run(["musicxml2ly", xml_path, "-o", ly_path], check=True, capture_output=True)
+        
+        # 3. Compile LilyPond to PDF
+        print(f"Compiling PDF with LilyPond...")
+        # Get output directory and filename
+        out_dir = os.path.dirname(output_path) or "."
+        out_name = os.path.basename(base_path)
+        
+        subprocess.run(["lilypond", "--pdf", "-o", os.path.join(out_dir, out_name), ly_path], check=True, capture_output=True)
+        
+        # Cleanup intermediate files
+        if os.path.exists(ly_path): os.remove(ly_path)
+        # Note: we keep the .musicxml as it's useful for other tools
+        
+        print(f"Successfully generated PDF at {output_path}")
+        return True
+    except Exception as e:
+        print(f"Error rendering to PDF: {e}")
         return False
 
 def annotate_score(score, key, roman_numerals=None, local_keys=None):

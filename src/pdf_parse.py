@@ -12,6 +12,12 @@ def clean_ocr_chord(ocr_text):
     
     # Exact or highly specific replacements first
     exact_replacements = {
+        'eb7it)': 'Eb7#9',
+        'eb7t)': 'Eb7#9',
+        'éma7': 'Ebmaj7',
+        'abe)': 'Ab7',
+        'éua7': 'Ebmaj7',
+        'A7be)': 'Ab7',
         'Abuill': 'Abm11',
         "gpa7k’)": 'Gbmaj7',
         "ark)": 'Am7', # Context: likely Am7 or just m7
@@ -55,14 +61,18 @@ def clean_ocr_chord(ocr_text):
         'Cnii9': 'Cmi9',
         'Abwaed': 'Abmaj7',
         'efuid': 'Ebm7',
+        'MA7': 'maj7',
+        'ma9': 'M9',
+        'maj9': 'M9',
+        'Maj7': 'maj7',
     }
     
     for k, v in general_replacements.items():
         if k in text:
             text = text.replace(k, v)
             
-    # Remove obvious noise
-    text = re.sub(r'[^a-zA-Z0-9#b\-\(\)ø^]', '', text)
+    # Remove obvious noise (now excluding parentheses entirely)
+    text = re.sub(r'[^a-zA-Z0-9#b\-\ø^]', '', text)
     
     # Clean up any trailing garbage characters that slipped through
     text = text.strip('()')
@@ -101,14 +111,14 @@ def align_chords_to_staves(chords_data, staves_data, barlines_data, start_measur
         
     global_measure_count = start_measure
     
-    for sys in sorted(system_chords.keys()):
-        chords = system_chords[sys]
+    for sys_idx in range(len(staves_data)):
+        chords = system_chords.get(sys_idx, [])
         chords.sort(key=lambda c: c['x'])
         
-        bars = barlines_data.get(sys, [])
-        if not bars:
-            # Fallback if no barlines detected for this system
-            bars = [500, 1000, 1500, 2000]
+        bars = barlines_data.get(sys_idx, [])
+        if len(bars) < 2:
+            # Fallback if no barlines detected for this system (assume 4 measures)
+            bars = [500, 1000, 1500, 2000, 2500]
             
         for c in chords:
             sym = clean_ocr_chord(c['text'])
@@ -147,9 +157,16 @@ def align_chords_to_staves(chords_data, staves_data, barlines_data, start_measur
                 
             s.insert(global_offset, sym)
             
-        # Advance global measure count by the number of measures in this system
-        # Number of measures is roughly number of barlines minus 1
+        # Add visible placeholder notes to every measure so the renderer doesn't collapse them
         num_measures = max(len(bars) - 1, 4)
+        for i in range(num_measures):
+            # LilyPond drops chords attached to pure rests. We must use a Note.
+            # We use a middle C but set its notehead and stem to be invisible.
+            n = note.Note('C4', type='whole')
+            n.style.hideObjectOnPrint = True # Hide the notehead
+            s.insert((global_measure_count + i) * beats_per_measure, n)
+            
+        # Advance global measure count by the number of measures in this system
         global_measure_count += num_measures
                 
     return s, global_measure_count
